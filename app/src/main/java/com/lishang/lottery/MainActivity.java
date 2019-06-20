@@ -1,25 +1,41 @@
 package com.lishang.lottery;
 
+import android.content.res.Resources;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.util.SparseArray;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import com.lishang.lottery.view.LotterySurfaceView;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class MainActivity extends AppCompatActivity {
 
     LotterySurfaceView lotterySurfaceView;
+    List<Integer> list = new ArrayList<>();
+    ImageView img;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        img = findViewById(R.id.img);
+        initData();
+        initLottery();
+    }
 
+    private void initLottery() {
         lotterySurfaceView = findViewById(R.id.lottery);
 
         lotterySurfaceView.setMargin(20);
@@ -32,72 +48,93 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onLotteryResult(int result) {
-                Log.e("OnLotteryListener", "result:" + result);
-                Toast.makeText(MainActivity.this, "当前大奖为:" + (result + 1) + "号奖品", Toast.LENGTH_SHORT).show();
+                int res = list.get(result);
+                Bitmap bitmap = Pool.get(res);
+                if (bitmap != null) {
+                    img.setImageBitmap(bitmap);
+                }
             }
         });
 
 
         lotterySurfaceView.setLotteryAdapter(new LotterySurfaceView.LotteryAdapter() {
+
+
             @Override
             public void onDrawPrize(Canvas canvas, Rect rect, int position) {
 
-                Paint paint = new Paint();
-                Paint textPaint = new Paint();
-                paint.setAntiAlias(true);
-                textPaint.setAntiAlias(true);
-                textPaint.setColor(Color.WHITE);
-
-                int size = rect.right - rect.left;
-                float textSize = size / 4.0f;
-                textPaint.setTextSize(textSize);
-                if (position % 2 == 0) {
-                    paint.setColor(Color.RED);
-                } else {
-                    paint.setColor(Color.BLUE);
+                int res = list.get(position);
+                Bitmap bitmap = Pool.get(res);
+                if (bitmap == null) {
+                    bitmap = BitmapFactory.decodeResource(MainActivity.this.getResources(), res);
+                    bitmap = scaleBitmap(bitmap, rect);
+                    Pool.put(res, bitmap);
                 }
 
-                canvas.drawRect(rect, paint);
-                if (position == 8) {
-                    String str = "抽奖";
-                    Rect rect1 = new Rect();
-                    textPaint.getTextBounds(str, 0, str.length(), rect1);
-                    canvas.drawText(str, size / 2.0f + rect.left - rect1.width() / 2.0f, rect.top + size / 2 + rect1.height() / 2, textPaint);
-                } else {
-                    String str = (position + 1) + "号";
-                    Rect rect1 = new Rect();
-                    textPaint.getTextBounds(str, 0, str.length(), rect1);
-                    canvas.drawText(str, size / 2.0f + rect.left - rect1.width() / 2.0f, rect.top + size / 2 + rect1.height() / 2, textPaint);
+                Paint paint = new Paint();
+                paint.setAntiAlias(true);
+
+                Rect newRect = bitmapRect(rect, bitmap);
+                canvas.drawBitmap(bitmap, null, newRect, paint);
+
+                if (position != list.size() - 1) {
+                    paint.setARGB(125, 0, 0, 0);
+                    canvas.drawRect(newRect, paint);
                 }
 
             }
 
             @Override
             public void onDrawLottery(Canvas canvas, Rect rect, int position) {
-                Paint paint = new Paint();
-                Paint textPaint = new Paint();
-                paint.setAntiAlias(true);
-                textPaint.setAntiAlias(true);
-                textPaint.setColor(Color.WHITE);
-                paint.setColor(Color.YELLOW);
-                canvas.drawRect(rect, paint);
-                int size = rect.right - rect.left;
-                float textSize = size / 4.0f;
-                textPaint.setTextSize(textSize);
-                if (position == 8) {
-                    String str = "抽奖";
-                    Rect rect1 = new Rect();
-                    textPaint.getTextBounds(str, 0, str.length(), rect1);
-                    canvas.drawText(str, size / 2.0f + rect.left - rect1.width() / 2.0f, rect.top + size / 2 + rect1.height() / 2, textPaint);
-                } else {
-                    String str = (position + 1) + "号";
-                    Rect rect1 = new Rect();
-                    textPaint.getTextBounds(str, 0, str.length(), rect1);
-                    canvas.drawText(str, size / 2.0f + rect.left - rect1.width() / 2.0f, rect.top + size / 2 + rect1.height() / 2, textPaint);
+
+                int res = list.get(position);
+                Bitmap bitmap = Pool.get(res);
+                if (bitmap == null) {
+                    bitmap = BitmapFactory.decodeResource(MainActivity.this.getResources(), res);
+                    bitmap = scaleBitmap(bitmap, rect);
+                    Pool.put(res, bitmap);
                 }
+
+                Paint paint = new Paint();
+                paint.setAntiAlias(true);
+
+                Rect newRect = bitmapRect(rect, bitmap);
+                canvas.drawBitmap(bitmap, null, newRect, paint);
+
+            }
+
+            private Bitmap scaleBitmap(Bitmap bitmap, Rect rect) {
+                int bw = bitmap.getWidth();
+                int bh = bitmap.getHeight();
+                int rw = rect.width();
+                int rh = rect.height();
+
+                float scale = (float) Math.min(1.0f * rw / bw, 1.0 * rh / bh);
+                Matrix matrix = new Matrix();
+                matrix.setScale(scale, scale);
+                bitmap = Bitmap.createBitmap(bitmap, 0, 0, bw, bh, matrix, true);
+                return bitmap;
+            }
+
+            private Rect bitmapRect(Rect rect, Bitmap bitmap) {
+                int bw = bitmap.getWidth();
+                int bh = bitmap.getHeight();
+                Rect newRect = new Rect();
+                newRect.left = (rect.width() - bw) / 2 + rect.left;
+                newRect.top = rect.top + (rect.height() - bh) / 2;
+                newRect.right = newRect.left + bw;
+                newRect.bottom = rect.top + bh;
+                return newRect;
             }
         });
-
-
     }
+
+    private void initData() {
+        Resources resources = getResources();
+        for (int i = 1; i < 10; i++) {
+            int id = resources.getIdentifier("img_" + i, "drawable", getPackageName());
+            list.add(id);
+        }
+    }
+
 }
